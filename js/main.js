@@ -253,7 +253,7 @@ class Page extends ZeroFrame {
         player_data.units[data.unit] = p_unit;
 
         //increase pop
-        player_data.population += data.amount;
+        player_data.population += data.amount*unit.pop;
 
         //consume resources
         for(var resource in unit.train_resources)
@@ -432,7 +432,7 @@ class Page extends ZeroFrame {
         //if trainer == null, will stop every training
         state.stopTraining = function(user, trainer, timestamp){
           var player = this.players[user];
-          for(var name in _this.units){
+          for(var name in _this.units){ //every unit type
             var base_unit = _this.units[name];
 
             if(!trainer || base_unit.trainer == trainer){
@@ -455,11 +455,14 @@ class Page extends ZeroFrame {
                     //refund resources
                     for(var resource in base_unit.train_resources)
                       state.varyResource(block.owner, resource, base_unit.train_resources[resource]*rest);
+
+                    //refund population
+                    player.population -= base_unit.pop*rest
                   }
                 }
               }
 
-              //set amount, no order
+              //set amount, remove previous order
               player.units[name] = {amount: amount}
             }
           }
