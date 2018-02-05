@@ -13,7 +13,7 @@ class Page extends ZeroFrame {
     }
 
     //detect login change
-    if(this.login != site_info.cert_user_id){
+    if(this.login == null || this.login != site_info.cert_user_id){
       this.login = site_info.cert_user_id;
 
       if(this.site_info.cert_user_id)
@@ -98,7 +98,7 @@ class Page extends ZeroFrame {
           wood: 10
         },
         pop: 1, //population units
-        travel_speed: 1, //unit of time per unit of distance
+        travel_time: 1, 
         travel_capacity: 10 //unit of resources to carry
       }
     }
@@ -176,6 +176,8 @@ class Page extends ZeroFrame {
       },
       stop_training: function(state, block, player_data, data){
         return true;
+      },
+      travel: function(state, block, player_data, data){
       }
     }
 
