@@ -72,6 +72,34 @@ class Page extends ZeroFrame {
         produce_resources: { //resource produced per time unit
           wood: 10
         }
+      },
+      farm: {
+        build_factor: 2,
+        build_time: 1,
+        build_resources: {
+          wood: 100
+        }
+      },
+      barrack: {
+        build_factor: 2,
+        build_time: 2,
+        build_resources: {
+          wood: 200
+        }
+      }
+    }
+
+    this.units = {
+      soldier: {
+        trainer: "barrack",
+        trainer_lvl: 1,
+        train_time: 1,
+        train_resources: {
+          wood: 10
+        },
+        pop: 1, //population units
+        travel_speed: 1, //unit of time per unit of distance
+        travel_capacity: 10 //unit of resources to carry
       }
     }
 
@@ -119,6 +147,31 @@ class Page extends ZeroFrame {
           //check in construction
           if(building.in_construction || building.lvl > 0)
             return true;
+        }
+      },
+      train: function(state, block, player_data, data){
+        //build order
+        var unit = _this.units[data.unit || ""];
+        if(unit){
+          var base = _this.buildings[unit.trainer];
+          var building = state.computeBuilding(block.owner, unit.trainer, block.data.timestamp);
+
+          if(base){
+            //check population
+            var cpop = state.computepopulation(block.owner, block.data.timestamp);
+            if(cpop.population+unit.pop*data.amount > cpop.max)
+              return false;
+
+            //check resources
+            for(var resource in unit.train_resources){
+              if(state.computeresource(block.owner, resource, block.data.timestamp) < unit.train_resources[resource]*data.amount)
+                return false;
+            }
+
+            //final check trainer
+            if(building.lvl > 0 && building.lvl >= unit.trainer_lvl)
+              return true;
+          }
         }
       }
     }
@@ -172,6 +225,39 @@ class Page extends ZeroFrame {
 
         //change building entry
         player_data.buildings[data.building] = {lvl: new_lvl-1, order_timestamp: block.data.timestamp};
+
+        //stop unit training
+        if(data.building == "farm") //every trainer
+          state.stopTraining(block.owner, null, block.data.timestamp);
+        else //only the current building (trainer)
+          state.stopTraining(block.owner, data.building, block.data.timestamp);
+      },
+      train: function(state, block, player_data, data){
+        //build order
+        var unit = _this.units[data.unit];
+
+        var p_unit = player_data.units[data.unit] || {amount: 0};
+
+        //modify order
+        if(p_unit.order_timestamp != null && p_unit.order_timestamp > block.data.timestamp){
+          //increase already present order timestamp
+          p_unit.ordered += data.amount;
+          p_unit.order_timestamp += data.amount*unit.train_time;
+        }
+        else{
+          //save last order training, create new one
+          p_unit.amount += p_unit.ordered;
+          p_unit.ordered = data.amount;
+          p_unit.order_timestamp = data.amount*unit.train_time;
+        }
+        player_data.units[data.unit] = p_unit;
+
+        //increase pop
+        player_data.population += data.amount;
+
+        //consume resources
+        for(var resource in unit.train_resources)
+          state.varyResource(block.owner, resource, -unit.train_resources[resource]*data.amount);
       }
     }
 
@@ -226,7 +312,8 @@ class Page extends ZeroFrame {
             //...
           },
           buildings: {},
-          units: {}
+          units: {},
+          population: 0
         }
       },
       actions: function(state, block){
@@ -308,6 +395,74 @@ class Page extends ZeroFrame {
         state.varyResource = function(user, resource, amount){
           var player = this.players[user];
           player.resources[resource] = (player.resources[resource] ? player.resources[resource] : 0)+amount;
+        }
+
+        //return {population: , max: }
+        state.computePopulation = function(user, timestamp){
+          var player = this.players[user];
+          var building = this.computeBuilding(user, "farm", timestamp);
+          var r = {population: player.population, max: 0}
+          if(building.lvl > 0)
+            r.max = 25*Math.pow(2, building.lvl-1); //max population formula
+
+          return r;
+        }
+
+        state.computeUnits = function(user, unit, timestamp){
+          var player = this.players[user];
+          var base_unit = _this.units[unit];
+          var amount = 0;
+          if(player){
+            var p_unit = player.units[unit];
+            if(p_unit){
+              amount = p_unit.amount;
+              if(p_unit.order_timestamp != null){
+                if(p_unit.order_timestamp > timestamp) //add trained
+                  amount += p_unit.ordered-(p_unit.order_timestamp-timestamp)/base_unit.train_time;
+                else //all done
+                  amount += p_unit.ordered;
+              }
+            }
+          }
+
+          return amount;
+        }
+
+        //stop training orders for a specific trainer (confirm already trained)
+        //if trainer == null, will stop every training
+        state.stopTraining = function(user, trainer, timestamp){
+          var player = this.players[user];
+          for(var name in _this.units){
+            var base_unit = _this.units[name];
+
+            if(!trainer || base_unit.trainer == trainer){
+              var amount = 0;
+              var p_unit = player.units[unit];
+              if(p_unit){
+                amount = p_unit.amount;
+                if(p_unit.order_timestamp != null){
+                  var trained = 0;
+                  if(p_unit.order_timestamp > timestamp) //add trained
+                    trained = p_unit.ordered-(p_unit.order_timestamp-timestamp)/base_unit.train_time;
+                  else //all done
+                    trained = p_unit.ordered;
+
+                  amount += trained;
+
+                  //refund the rest
+                  var rest = p_unit.ordered-trained;
+                  if(rest > 0){
+                    //refund resources
+                    for(var resource in base_unit.train_resources)
+                      state.varyResource(block.owner, resource, base_unit.train_resources[resource]*rest);
+                  }
+                }
+              }
+
+              //set amount, no order
+              player.units[name] = {amount: amount}
+            }
+          }
         }
       }
       else{ //post build
@@ -409,7 +564,7 @@ class Page extends ZeroFrame {
             _this.e_game.appendChild(document.createElement("br"));
             _this.e_game.appendChild(e_down);
             _this.e_game.appendChild(e_up);
-            _this.e_game.appendChild(document.createTextNode(name+": lvl = "+building.lvl+" in_construction = "+building.in_construction));
+            _this.e_game.appendChild(document.createTextNode(name+": lvl = "+building.lvl+" in_construction = "+building.in_construction+" ETA "+(building.order_timestamp-_this.current_timestamp)));
           }
 
           disp_building("city_hall");
