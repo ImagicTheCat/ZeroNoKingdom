@@ -158,13 +158,13 @@ class Page extends ZeroFrame {
 
           if(base){
             //check population
-            var cpop = state.computepopulation(block.owner, block.data.timestamp);
+            var cpop = state.computePopulation(block.owner, block.data.timestamp);
             if(cpop.population+unit.pop*data.amount > cpop.max)
               return false;
 
             //check resources
             for(var resource in unit.train_resources){
-              if(state.computeresource(block.owner, resource, block.data.timestamp) < unit.train_resources[resource]*data.amount)
+              if(state.computeResource(block.owner, resource, block.data.timestamp) < unit.train_resources[resource]*data.amount)
                 return false;
             }
 
@@ -173,6 +173,9 @@ class Page extends ZeroFrame {
               return true;
           }
         }
+      },
+      stop_training: function(state, block, player_data, data){
+        return true;
       }
     }
 
@@ -246,9 +249,10 @@ class Page extends ZeroFrame {
         }
         else{
           //save last order training, create new one
-          p_unit.amount += p_unit.ordered;
+          if(p_unit.ordered != null)
+            p_unit.amount += p_unit.ordered;
           p_unit.ordered = data.amount;
-          p_unit.order_timestamp = data.amount*unit.train_time;
+          p_unit.order_timestamp = block.data.timestamp+data.amount*unit.train_time;
         }
         player_data.units[data.unit] = p_unit;
 
@@ -258,6 +262,9 @@ class Page extends ZeroFrame {
         //consume resources
         for(var resource in unit.train_resources)
           state.varyResource(block.owner, resource, -unit.train_resources[resource]*data.amount);
+      },
+      stop_training: function(state, block, player_data, data){
+        state.stopTraining(block.owner, null, block.data.timestamp);
       }
     }
 
@@ -437,7 +444,7 @@ class Page extends ZeroFrame {
 
             if(!trainer || base_unit.trainer == trainer){
               var amount = 0;
-              var p_unit = player.units[unit];
+              var p_unit = player.units[name];
               if(p_unit){
                 amount = p_unit.amount;
                 if(p_unit.order_timestamp != null){
@@ -454,7 +461,7 @@ class Page extends ZeroFrame {
                   if(rest > 0){
                     //refund resources
                     for(var resource in base_unit.train_resources)
-                      state.varyResource(block.owner, resource, base_unit.train_resources[resource]*rest);
+                      state.varyResource(user, resource, base_unit.train_resources[resource]*rest);
 
                     //refund population
                     player.population -= base_unit.pop*rest
@@ -546,7 +553,12 @@ class Page extends ZeroFrame {
           disp_resource("wood");
           disp_resource("stone");
           disp_resource("iron");
+          var pop = state.computePopulation(user, this.current_timestamp);
+          e_infos.innerHTML += "\npop = "+pop.population+" / "+pop.max;
           this.e_game.appendChild(e_infos);
+
+          this.e_game.appendChild(document.createElement("br"));
+          this.e_game.appendChild(document.createTextNode("= BUILDINGS ="));
 
           var disp_building = function(name){
             var building = state.computeBuilding(user, name, _this.current_timestamp);
@@ -572,6 +584,21 @@ class Page extends ZeroFrame {
 
           disp_building("city_hall");
           disp_building("sawmill");
+          disp_building("barrack");
+          disp_building("farm");
+
+          this.e_game.appendChild(document.createElement("br"));
+          this.e_game.appendChild(document.createTextNode("= UNITS ="));
+
+          var disp_units = function(name){
+            var units = state.computeUnits(user, name, _this.current_timestamp);
+            var p_unit = player.units[name] || {amount: 0};
+
+            _this.e_game.appendChild(document.createElement("br"));
+            _this.e_game.appendChild(document.createTextNode(name+": amount = "+units+" ordered = "+p_unit.ordered+" ETA "+(p_unit.order_timestamp-_this.current_timestamp)));
+          }
+
+          disp_units("soldier");
         }
         else{
           //city creation
