@@ -109,6 +109,17 @@ class Page extends ZeroFrame {
 
           return true;
         }
+      },
+      unbuild: function(state, block, player_data, data){
+        //unbuild order (deconstruction, cancel construction)
+        var base = _this.buildings[data.building || ""];
+        if(base){
+          var building = state.computeBuilding(block.owner, data.building, block.data.timestamp);
+
+          //check in construction
+          if(building.in_construction || building.lvl > 0)
+            return true;
+        }
       }
     }
 
@@ -123,16 +134,44 @@ class Page extends ZeroFrame {
           state.varyResource(block.owner, resource, -base.build_resources[resource]*factor);
 
         //add previously generated resources (remember production)
-        if(building.order_timestamp != null){
-          var factor = Math.pow(base.build_factor,building.lvl-1); 
+        if(building.order_timestamp != null && building.lvl > 0){
+          var sfactor = Math.pow(base.build_factor,building.lvl-1); 
           for(var resource in base.produce_resources){
             var amount = base.produce_resources[resource];
             if(amount > 0)
-              state.varyResource(block.owner, resource, factor*amount*(block.data.timestamp-building.order_timestamp));
+              state.varyResource(block.owner, resource, sfactor*amount*(block.data.timestamp-building.order_timestamp));
           }
         }
 
-        player_data.buildings[data.building] = {lvl: building.lvl, order_timestamp: block.data.timestamp};
+        //change building entry
+        player_data.buildings[data.building] = {lvl: building.lvl, order_timestamp: block.data.timestamp+factor*base.build_time};
+      },
+      unbuild: function(state, block, player_data, data){
+        var base = _this.buildings[data.building];
+        var building = state.computeBuilding(block.owner, data.building, block.data.timestamp);
+
+        var new_lvl = building.lvl-(building.in_construction ? 0 : 1);
+
+        //add previously generated resources (remember production)
+        if(!building.in_construction && building.lvl > 0 && building.order_timestamp != null){
+          var sfactor = Math.pow(base.build_factor,building.lvl-1); 
+          for(var resource in base.produce_resources){
+            var amount = base.produce_resources[resource];
+            if(amount > 0)
+              state.varyResource(block.owner, resource, sfactor*amount*(block.data.timestamp-building.order_timestamp));
+          }
+        }
+
+        //refund building cost
+        var sfactor = Math.pow(base.build_factor,new_lvl); 
+        for(var resource in base.build_resources){
+          var amount = base.build_resources[resource];
+          if(amount > 0)
+            state.varyResource(block.owner, resource, sfactor*amount);
+        }
+
+        //change building entry
+        player_data.buildings[data.building] = {lvl: new_lvl-1, order_timestamp: block.data.timestamp};
       }
     }
 
@@ -358,11 +397,19 @@ class Page extends ZeroFrame {
             e_up.onclick = function(){
               _this.game_chain.push({ type: "actions", timestamp: _this.current_timestamp, actions: [["build", {building: name}]]});
             }
-            e_up.value = "UP "+name;
+            e_up.value = "UP";
+
+            var e_down = document.createElement("input");
+            e_down.type = "button";
+            e_down.onclick = function(){
+              _this.game_chain.push({ type: "actions", timestamp: _this.current_timestamp, actions: [["unbuild", {building: name}]]});
+            }
+            e_down.value = "DOWN";
 
             _this.e_game.appendChild(document.createElement("br"));
+            _this.e_game.appendChild(e_down);
             _this.e_game.appendChild(e_up);
-            _this.e_game.appendChild(document.createTextNode("lvl = "+building.lvl+" in_construction = "+building.in_construction));
+            _this.e_game.appendChild(document.createTextNode(name+": lvl = "+building.lvl+" in_construction = "+building.in_construction));
           }
 
           disp_building("city_hall");
