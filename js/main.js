@@ -1,6 +1,13 @@
 //NOTES:
 //timestamp unit is 5 minutes
 
+TravelType = {
+  ATTACK: 0,
+  DEFEND: 1,
+  TRANSPORT: 2,
+  RETURN: 3
+}
+
 class Page extends ZeroFrame {
   setSiteInfo(site_info) {
     this.site_info = site_info;
@@ -178,6 +185,43 @@ class Page extends ZeroFrame {
         return true;
       },
       travel: function(state, block, player_data, data){
+        //check units
+        if(!data.units)
+          return false;
+
+        var capacity = 0;
+        for(var unit in data.units){
+          var base_unit = _this.units[unit];
+          if(!base_unit)
+            return false;
+
+          capacity += base_unit.travel_capacity;
+
+          var t_amount = data.units[unit];
+          var a_amount = state.computeUnits(block.owner, unit, block.data.timestamp, true);
+          if(t_amount <= 0 || t_amount > a_amount)
+            return false;
+        }
+
+        //check resources
+        var total = 0;
+        if(data.resources && (data.type == TravelType.DEFEND || data.type == TravelType.TRANSPORT)){
+          for(var resource in data.resources){
+            var t_amount = data.resources[resource];
+            var a_amount = state.computeResource(block.owner, resource, block.data.timestamp);
+
+            total += t_amount;
+
+            if(t_amount <= 0 || t_amount > a_amount)
+              return false;
+          }
+        }
+        
+        //check capacity
+        if(total > capacity)
+          return false;
+
+        return true;
       }
     }
 
@@ -267,6 +311,15 @@ class Page extends ZeroFrame {
       },
       stop_training: function(state, block, player_data, data){
         state.stopTraining(block.owner, null, block.data.timestamp);
+      },
+      travel: function(state, block, player_data, data){
+        var travel = {
+          type: data.type, 
+          units: data.units, 
+          resources: data.resources
+        }
+
+        player_data.travels.push(travel);
       }
     }
 
@@ -322,6 +375,7 @@ class Page extends ZeroFrame {
           },
           buildings: {},
           units: {},
+          travels: {},
           population: 0
         }
       },
@@ -417,7 +471,9 @@ class Page extends ZeroFrame {
           return r;
         }
 
-        state.computeUnits = function(user, unit, timestamp){
+        //return number of owner units 
+        //only_available: true to only get available units
+        state.computeUnits = function(user, unit, timestamp, only_available){
           var player = this.players[user];
           var base_unit = _this.units[unit];
           var amount = 0;
@@ -430,6 +486,16 @@ class Page extends ZeroFrame {
                   amount += p_unit.ordered-(p_unit.order_timestamp-timestamp)/base_unit.train_time;
                 else //all done
                   amount += p_unit.ordered;
+              }
+            }
+
+            if(only_available){
+              //remove parked/travelling units
+              for(var i = 0; i < player.travels.length; i++){
+                var travel = player.travels[i];
+                var u_amount = travel.units[unit];
+                if(u_amount != null && (travel.type == TravelType.DEFEND || travel.order_timestamp > timestamp))
+                  amount -= u_amount;
               }
             }
           }
