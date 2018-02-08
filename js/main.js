@@ -106,7 +106,9 @@ class Page extends ZeroFrame {
         },
         pop: 1, //population units
         travel_time: 1, 
-        travel_capacity: 10 //unit of resources to carry
+        travel_capacity: 10, //unit of resources to carry
+        attack: 2,
+        defense: 2
       }
     }
 
@@ -616,6 +618,144 @@ class Page extends ZeroFrame {
 
               //set amount, remove previous order
               player.units[name] = {amount: amount}
+            }
+          }
+        }
+
+        //process the attacks (called after every processed block and at the end of the build)
+        state.processAttacks = function(timestamp){
+          for(var user in state.players){
+            var player = state.players[user];
+
+            for(var i = 0; i < player.travels.length; i++){
+              var travel = player.travels[i];
+              var tplayer = state.players[travel.target];
+              var attack_timestamp = travel.timestamp+travel.time;
+
+              if(travel.type == TravelType.ATTACK && !travel.attack_processed 
+                && timestamp >= attack_timestamp){ //process attack
+
+                travel.attack_processed = true;
+
+                //compute defense
+                var defense_units = {}
+                for(var unit in _this.units) //owned
+                  defense_units[unit] = this.computeUnits(travel.target, unit, attack_timestamp, true);
+                for(var dtravel in tplayer.in_travels){
+                  if(dtravel.type == TravelType.DEFEND && timestamp >= dtravel.timestamp+dtravel.time){
+                    for(var unit in dtravel.units)
+                      defense_units[unit] += dtravel.units[unit];
+                  }
+                }
+
+                var total_defense = 0;
+                var total_attack = 0;
+                for(var unit in _this.units){
+                  total_defense += _this.units[unit].defense*(defense_units[unit] || 0);
+                  total_attack += _this.units[unit].attack*(travel.units[unit] || 0);
+                }
+
+                if(total_attack > 0 && total_defense > 0){ //decimate units
+                  //decimate attack units
+                  var defense = total_defense;
+                  var units = [];
+
+                  //sort by attack DESC
+                  for(var unit in travel.units)
+                    units.push([unit, travel.units[unit], _this.units[unit].attack]); //name, amount
+                  units.sort(function(a,b){
+                    return b[2]-a[2];
+                  });
+
+                  var i = 0;
+                  while(defense > 0 && i < units.length){
+                    var amount = units[i][1];
+                    var unit_attack = units[i][2];
+                    var n = Math.min(Math.floor(defense/unit_attack), amount);
+                    if(n > 0){ //consume units
+                      defense -= n*unit_attack;
+                      var unit = units[i][0];
+                      var base_unit = _this.units[unit];
+
+                      player.population += base_unit.pop*n;
+                      player.units[unit].amount -= n;
+                      travel.units[unit] -= n;
+                    }
+
+                    i++;
+                  }
+
+                  //decimate defense units
+                  var attack = total_attack;
+                  units = [];
+
+                  //sort by defense DESC
+                  for(var unit in defense_units)
+                    units.push([unit, defense_units[unit], _this.units[unit].defense]); //name, amount
+                  units.sort(function(a,b){
+                    return b[2]-a[2];
+                  });
+
+                  var i = 0;
+                  while(attack > 0 && i < units.length){
+                    var amount = units[i][1];
+                    var unit_defense = units[i][2];
+                    var n = Math.min(Math.floor(attack/unit_defense), amount);
+                    if(n > 0){ //consume units
+                      attack -= n*unit_defense;
+                      var unit = units[i][0];
+                      var base_unit = _this.units[unit];
+
+                      //consume owned
+                      var owned_amount = this.computeUnits(travel.target, unit, attack_timestamp, true);
+                      var owned_n = Math.min(n, owned_amount);
+                      n -= owned_n;
+                      tplayer.units[unit].amount -= owned_n;
+                      tplayer.population -= owned_n*base_unit*pop;
+
+                      //consume parked
+                      for(var dtravel in tplayer.in_travels){
+                        if(n == 0) //stop consuming
+                          break;
+
+                        if(dtravel.type == TravelType.DEFEND && timestamp >= dtravel.timestamp+dtravel.time){
+                          var parked_amount = dtravel.units[unit] || 0;
+                          var parked_n = Math.min(n, parked_amount);
+                          if(parked_n > 0){
+                            var pplayer = this.players[dtravel.from];
+                            pplayer.units[unit].amount -= parked_n;
+                            dtravel.units[unit] -= parked_n;
+                            pplayer.population -= parked_n*base_unit.pop;
+                          }
+                        }
+                      }
+                    }
+
+                    i++;
+                  }
+                }
+
+                if(total_attack > total_defense){ //steal resources
+                  //return travel
+                  travel.type = TravelType.RETURN;
+                  travel.resources = {}
+                  travel.timestamp = travel.timestamp+travel.time;
+
+                  //compute capacity
+                  var capacity = 0;
+                  for(var unit in travel.units){
+                    var base_unit = _this.units[unit];
+                    capacity += travel.units[unit]*base_unit.travel_capacity;
+                  }
+
+                  //take resources
+                  for(var resource in _this.resources){
+                    var take = Math.min(capacity, this.computeResource(travel.target, resource, attack_timestamp));
+                    state.varyResource(travel.target, resource, -take); //consume resource
+                    travel.resources[resource] = take;
+                  }
+                }
+              }
             }
           }
         }
