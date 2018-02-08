@@ -221,7 +221,17 @@ class Page extends ZeroFrame {
         if(total > capacity)
           return false;
 
-        return true;
+        //final check target
+        if(data.target && state.players[data.target])
+          return true;
+      },
+      cancel_travel: function(state, block, player_data, data){
+        var id = data.id;
+        var travel = player_data.travels[id];
+        if(travel){
+          if(travel.type != TravelType.RETURN && (travel.timestamp+travel.time > block.data.timestamp || travel.type == TravelType.DEFEND)) //can cancel first phase and parked units (can't cancel returning travels)
+            return true;
+        }
       }
     }
 
@@ -316,10 +326,48 @@ class Page extends ZeroFrame {
         var travel = {
           type: data.type, 
           units: data.units, 
-          resources: data.resources
+          resources: data.resources,
+          target: data.target,
+          from: block.owner
         }
 
+        //consume resources
+        if(data.resources && (data.type == TravelType.DEFEND || data.type == TravelType.TRANSPORT)){
+          for(var resource in data.resources)
+            state.varyResource(block.owner, resource, -data.resources[resource]);
+        }
+ 
+        //compute travel time
+        var max_travel_time = 0;
+        for(var unit in data.units){
+          var time = data.units[unit].travel_time;
+
+          if(time > max_travel_time)
+            max_travel_time = time;
+        }
+
+        travel.time = max_travel_time;
+        travel.timestamp = block.data.timestamp;
+
+        //player record
         player_data.travels.push(travel);
+        //target record
+        state.players[data.target].in_travels.push(travel);
+      },
+      cancel_travel: function(state, block, player_data, data){
+        var travel = player_data.travels[data.id];
+
+        var time_done = block.data.timestamp-travel.timestamp;
+        if(time_done < travel.time){ //return travel (units/resources)
+          travel.type = TravelType.RETURN;
+          travel.time = time_done;
+          travel.timestamp = block.data.timestamp;
+        }
+        else{ //TravelType.DEFEND, cancel parked units
+          travel.type = TravelType.RETURN;
+          travel.timestamp = block.data.timestamp;
+          delete travel.resources;
+        }
       }
     }
 
@@ -376,6 +424,7 @@ class Page extends ZeroFrame {
           buildings: {},
           units: {},
           travels: {},
+          in_travels: {},
           population: 0
         }
       },
@@ -450,6 +499,30 @@ class Page extends ZeroFrame {
             //add balance
             if(player.resources[resource] != null)
               amount += player.resources[resource];
+
+            //add incoming transports
+            for(var i = 0; i < player.in_travels.length; i++){
+              var travel = player.in_travels[i];
+
+              if(travel.timestamp+travel.time >= timestamp
+                && travel.resources && (travel.type == TravelType.DEFEND || travel.type == TravelType.TRANSPORT)){
+                var t_amount = travel.resources[resource];
+                if(t_amount)
+                  amount += t_amount;
+              }
+            }
+
+            //add returning transports
+            for(var i = 0; i < player.travels.length; i++){
+              var travel = player.travels[i];
+
+              if(travel.timestamp+travel.time >= timestamp
+                && travel.resources && travel.type == TravelType.RETURN)
+                var t_amount = travel.resources[resource];
+                if(t_amount)
+                  amount += t_amount;
+              }
+            }
           }
 
           return amount;
@@ -494,8 +567,12 @@ class Page extends ZeroFrame {
               for(var i = 0; i < player.travels.length; i++){
                 var travel = player.travels[i];
                 var u_amount = travel.units[unit];
-                if(u_amount != null && (travel.type == TravelType.DEFEND || travel.order_timestamp > timestamp))
+                if(u_amount != null){
+                  if(travel.type == TravelType.DEFEND ||
+                    travel.timestamp+travel.time > timestamp ||
+                    (travel.type != TravelType.RETURN && travel.timestamp+travel.time*2 > timestamp))
                   amount -= u_amount;
+                }
               }
             }
           }
