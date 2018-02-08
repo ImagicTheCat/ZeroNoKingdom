@@ -427,6 +427,7 @@ class Page extends ZeroFrame {
           units: {},
           travels: [],
           in_travels: [],
+          reports: [],
           population: 0
         }
       },
