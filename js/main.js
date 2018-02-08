@@ -224,7 +224,7 @@ class Page extends ZeroFrame {
           return false;
 
         //final check target
-        if(data.target && state.players[data.target])
+        if(data.target && state.players[data.target] && data.target != block.owner)
           return true;
       },
       cancel_travel: function(state, block, player_data, data){
@@ -342,7 +342,7 @@ class Page extends ZeroFrame {
         //compute travel time
         var max_travel_time = 0;
         for(var unit in data.units){
-          var time = data.units[unit].travel_time;
+          var time = _this.units[unit].travel_time;
 
           if(time > max_travel_time)
             max_travel_time = time;
@@ -425,8 +425,8 @@ class Page extends ZeroFrame {
           },
           buildings: {},
           units: {},
-          travels: {},
-          in_travels: {},
+          travels: [],
+          in_travels: [],
           population: 0
         }
       },
@@ -519,7 +519,7 @@ class Page extends ZeroFrame {
               var travel = player.travels[i];
 
               if(travel.timestamp+travel.time >= timestamp
-                && travel.resources && travel.type == TravelType.RETURN)
+                && travel.resources && travel.type == TravelType.RETURN){
                 var t_amount = travel.resources[resource];
                 if(t_amount)
                   amount += t_amount;
@@ -735,11 +735,13 @@ class Page extends ZeroFrame {
                   }
                 }
 
+                console.log("attack from "+travel.from+" to "+travel.target+" "+total_attack+" | "+total_defense);
+
                 if(total_attack > total_defense){ //steal resources
                   //return travel
                   travel.type = TravelType.RETURN;
                   travel.resources = {}
-                  travel.timestamp = travel.timestamp+travel.time;
+                  travel.timestamp = attack_timestamp;
 
                   //compute capacity
                   var capacity = 0;
@@ -749,10 +751,11 @@ class Page extends ZeroFrame {
                   }
 
                   //take resources
-                  for(var resource in _this.resources){
+                  for(var resource in tplayer.resources){
                     var take = Math.min(capacity, this.computeResource(travel.target, resource, attack_timestamp));
                     state.varyResource(travel.target, resource, -take); //consume resource
                     travel.resources[resource] = take;
+                    capacity -= take;
                   }
                 }
               }
@@ -761,6 +764,7 @@ class Page extends ZeroFrame {
         }
       }
       else{ //post build
+        state.processAttacks(_this.current_timestamp);
         _this.refresh();
       }
     });
@@ -788,11 +792,11 @@ class Page extends ZeroFrame {
     //process block
     this.game_chain.addProcessCallback(function(state, block){
       //type process
-      if(block.data.type){
-        var cb = _this.process_types[block.data.type];
-        if(cb)
-          return cb(state, block);
-      }
+      var cb = _this.process_types[block.data.type];
+      cb(state, block);
+
+      if(block.data.timestamp)
+        state.processAttacks(block.data.timestamp);
     });
 
     this.game_chain.load();
@@ -802,6 +806,12 @@ class Page extends ZeroFrame {
       _this.current_timestamp = Math.floor(new Date().getTime()/300000);
       _this.game_chain.build();
     }, 1500); 
+
+    //force refresh every minute
+    setInterval(function(){
+      _this.game_chain.state.processAttacks(_this.current_timestamp);
+      _this.refresh();
+    }, 60000);
   }
 
   onRequest(cmd, message) {
@@ -876,11 +886,12 @@ class Page extends ZeroFrame {
           this.e_game.appendChild(document.createTextNode("= UNITS ="));
 
           var disp_units = function(name){
-            var units = state.computeUnits(user, name, _this.current_timestamp);
+            var units = state.computeUnits(user, name, _this.current_timestamp, true);
+            var tunits = state.computeUnits(user, name, _this.current_timestamp);
             var p_unit = player.units[name] || {amount: 0};
 
             _this.e_game.appendChild(document.createElement("br"));
-            _this.e_game.appendChild(document.createTextNode(name+": amount = "+units+" ordered = "+p_unit.ordered+" ETA "+(p_unit.order_timestamp-_this.current_timestamp)));
+            _this.e_game.appendChild(document.createTextNode(name+": amount = "+units+"("+tunits+") ordered = "+p_unit.ordered+" ETA "+(p_unit.order_timestamp-_this.current_timestamp)));
           }
 
           disp_units("soldier");
