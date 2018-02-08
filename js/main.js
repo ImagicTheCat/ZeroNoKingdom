@@ -518,11 +518,12 @@ class Page extends ZeroFrame {
             for(var i = 0; i < player.travels.length; i++){
               var travel = player.travels[i];
 
-              if(travel.timestamp+travel.time >= timestamp
+              if(travel.timestamp+travel.time < timestamp
                 && travel.resources && travel.type == TravelType.RETURN){
                 var t_amount = travel.resources[resource];
-                if(t_amount)
+                if(t_amount){
                   amount += t_amount;
+                }
               }
             }
           }
