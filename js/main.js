@@ -58,6 +58,7 @@ class Page extends ZeroFrame {
     this.e_pop = document.getElementById("pop");
     this.e_buildings = document.getElementById("buildings");
     this.e_units = document.getElementById("units");
+    this.e_travels = document.getElementById("travels");
 
     //init 
     this.cmd("siteInfo", [], function(site_info) {
@@ -982,6 +983,7 @@ class Page extends ZeroFrame {
     this.e_resources.innerHTML = "";
     this.e_buildings.innerHTML = "";
     this.e_units.innerHTML = "";
+    this.e_travels.innerHTML = "";
 
     if(this.game_chain.stats.built_hash){
       if(this.site_info.cert_user_id){
@@ -1017,6 +1019,37 @@ class Page extends ZeroFrame {
           }
 
           this.e_units.appendChild(b_stoptraining);
+
+          //display travels
+          var travels = [];
+          for(var i = 0; i < player.travels.length; i++)
+            travels.push(player.travels[i]);
+          for(var i = 0; i < player.in_travels.length; i++)
+            travels.push(player.in_travels[i]);
+
+          //sort by arrival DESC
+          travels.sort(function(a,b){
+            return (b.timestamp+b.time)-(a.timestamp+a.time);
+          });
+
+          for(var i = 0; i < travels.length; i++){
+            var travel = travels[i];
+
+            if(travel.timestamp+travel.time > this.current_timestamp || true){
+              var el = document.createElement("div");
+              
+              var e_type = document.createElement("span");
+              e_type.innerText = ((travel.type == TravelType.RETURN && travel.from == user) || (travel.type != TravelType.RETURN && travel.from != user) ? "<=" : "=>");
+              e_type.classList.add(travel.from == user || travel.type == TravelType.TRANSPORT || travel.type == TravelType.DEFEND ? "friendly" : "hostile");
+
+              var e_info = document.createElement("span");
+              e_info.innerText = this.game_chain.getCertUserId(travel.from)+" > "+this.game_chain.getCertUserId(travel.target)+" ETA "+((travel.timestamp+travel.time)-this.current_timestamp);
+
+              el.appendChild(e_type);
+              el.appendChild(e_info);
+              this.e_travels.appendChild(el);
+            }
+          }
         }
         else{
           //city creation (TODO)

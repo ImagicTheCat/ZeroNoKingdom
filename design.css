@@ -37,7 +37,7 @@ body{
   display: flex;
 }
 
-#resources div{
+#resources > div{
   display: flex;
   align-items: center;
   padding-left: 5px;
@@ -45,14 +45,14 @@ body{
 }
 
 /* resource image */
-#resources div img{
+#resources > div > img{
   width: 24px;
   height: 24px;
   background-color: black;
 }
 
 /* resource amount */
-#resources div span{
+#resources > div > span{
 }
 
 #playground{
@@ -73,7 +73,7 @@ body{
   border: 1px solid red;
 }
 
-#buildings div{
+#buildings > div{
   border: 1px solid gray;
   display: flex;
   border-radius: 8px;
@@ -81,12 +81,12 @@ body{
   margin-bottom: 5px;
 }
 
-#buildings div img{
+#buildings > div > img{
   border-radius: 8px;
   margin-right: 3px;
 }
 
-#buildings div ul{
+#buildings > div > ul{
   list-style-type: none;
 }
 
@@ -107,12 +107,34 @@ span.button:hover{
   border: 1px solid white;
 }
 
-#units div{
+#units > div{
   display: flex;
   background-color: #EEEEEE;
   align-items: center;
 }
 
-#units div input[type=text]{
+#units > div > input[type=text]{
   width: 40px;
 }
+
+#travels > div{
+  display: flex;
+  background-color: #EEEEEE;
+  align-items: center;
+}
+
+#travels > div > span.friendly{
+  color: white;
+  background-color: green;
+  font-weight: bold;
+  padding: 2px;
+}
+
+#travels > div > span.hostile{
+  color: white;
+  background-color: red;
+  font-weight: bold;
+  padding: 2px;
+}
+
+
