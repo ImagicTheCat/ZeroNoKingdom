@@ -71,6 +71,8 @@ class Page extends ZeroFrame {
     //game data
     this.buildings = {
       city_hall: { 
+        display_name: "City hall",
+        description: "The city hall allow you to upgrade the city (other buildings have their level clamped to the city hall level).",
         max_lvl: 5, //other buildings have a max_lvl of the city_hall lvl
         build_factor: 4, //time/resources base factor (factor^(target_lvl-1)*required to build)
         build_time: 1,
@@ -79,6 +81,8 @@ class Page extends ZeroFrame {
         }
       },
       sawmill: {
+        display_name: "Sawmill",
+        description: "Wood production.",
         build_factor: 2,
         build_time: 1,
         build_resources: {
@@ -89,6 +93,8 @@ class Page extends ZeroFrame {
         }
       },
       farm: {
+        display_name: "Farm",
+        description: "Food production (population).",
         build_factor: 2,
         build_time: 1,
         build_resources: {
@@ -96,6 +102,8 @@ class Page extends ZeroFrame {
         }
       },
       barrack: {
+        display_name: "Barrack",
+        description: "Units training.",
         build_factor: 2,
         build_time: 2,
         build_resources: {
@@ -850,25 +858,51 @@ class Page extends ZeroFrame {
 
   displayBuilding(state, user, building)
   {
+    var _this = this;
+
     var info = state.computeBuilding(user, building, this.current_timestamp);
+    var base = this.buildings[building];
 
     var el = document.createElement("div");
     var img = document.createElement("img");
     img.src = "images/buildings/"+building+".png";
-    img.title = building;
+    img.title = base.display_name;
 
     var ul = document.createElement("ul");
     
     var li = document.createElement("li");
+    li.innerText = base.description;
+    ul.appendChild(li);
+
+    li = document.createElement("li");
     li.innerText = "lvl "+info.lvl;
     ul.appendChild(li);
 
+
     if(info.in_construction){
-      li = document.createElement("li");
-      li.innerText = "ETA "+(info.order_timestamp-this.current_timestamp);
+      li.innerText += " ETA "+(info.order_timestamp-this.current_timestamp);
       ul.appendChild(li);
     }
+
+    //buttons
+
+    li = document.createElement("li");
+    var button = document.createElement("span");
+    button.classList.add("button");
+    button.innerText = "upgrade";
+    button.onclick = function(){
+      _this.game_chain.push({ type: "actions", timestamp: _this.current_timestamp, actions: [["build", {building: building}]]});
+    }
+    li.appendChild(button);
       
+    button = document.createElement("span");
+    button.classList.add("button");
+    button.innerText = "downgrade";
+    button.onclick = function(){
+      _this.game_chain.push({ type: "actions", timestamp: _this.current_timestamp, actions: [["unbuild", {building: building}]]});
+    }
+    li.appendChild(button);
+    ul.appendChild(li);
 
     el.appendChild(img);
     el.appendChild(ul);
@@ -898,34 +932,6 @@ class Page extends ZeroFrame {
           var pop = state.computePopulation(user, this.current_timestamp);
           this.e_pop.innerText = pop.population+" / "+pop.max+" pop";
 
-          this.e_game.appendChild(document.createTextNode("= BUILDINGS ="));
-
-          var disp_building = function(name){
-            var building = state.computeBuilding(user, name, _this.current_timestamp);
-            var e_up = document.createElement("input");
-            e_up.type = "button";
-            e_up.onclick = function(){
-              _this.game_chain.push({ type: "actions", timestamp: _this.current_timestamp, actions: [["build", {building: name}]]});
-            }
-            e_up.value = "UP";
-
-            var e_down = document.createElement("input");
-            e_down.type = "button";
-            e_down.onclick = function(){
-              _this.game_chain.push({ type: "actions", timestamp: _this.current_timestamp, actions: [["unbuild", {building: name}]]});
-            }
-            e_down.value = "DOWN";
-
-            _this.e_game.appendChild(document.createElement("br"));
-            _this.e_game.appendChild(e_down);
-            _this.e_game.appendChild(e_up);
-            _this.e_game.appendChild(document.createTextNode(name+": lvl = "+building.lvl+" in_construction = "+building.in_construction+" ETA "+(building.order_timestamp-_this.current_timestamp)));
-          }
-
-          disp_building("city_hall");
-          disp_building("sawmill");
-          disp_building("barrack");
-          disp_building("farm");
           this.displayBuilding(state, user, "city_hall");
           this.displayBuilding(state, user, "sawmill");
           this.displayBuilding(state, user, "barrack");

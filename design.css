@@ -65,6 +65,7 @@ body{
   flex: 1;
   border: 1px solid blue;
   overflow: auto;
+  padding: 3px;
 }
 
 #pgwar{
@@ -73,13 +74,35 @@ body{
 }
 
 #buildings div{
-  border: 1px solid yellow;
+  border: 1px solid gray;
   display: flex;
+  border-radius: 8px;
+  background-color: #EEEEEE;
+  margin-bottom: 5px;
 }
 
 #buildings div img{
+  border-radius: 8px;
+  margin-right: 3px;
 }
 
 #buildings div ul{
   list-style-type: none;
+}
+
+span.button{
+  border-radius: 5px;
+  padding-left: 3px;
+  padding-right: 3px;
+  background-color: white;
+  color: orange;
+  border: 1px solid orange;
+  margin: 1px;
+}
+
+span.button:hover{
+  cursor: pointer;
+  background-color: orange;
+  color: white;
+  border: 1px solid white;
 }
