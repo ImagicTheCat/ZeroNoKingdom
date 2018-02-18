@@ -59,8 +59,6 @@ class Page extends ZeroFrame {
     this.e_buildings = document.getElementById("buildings");
     this.e_units = document.getElementById("units");
 
-    this.e_game = document.getElementById("game");
-
     //init 
     this.cmd("siteInfo", [], function(site_info) {
       _this.setSiteInfo(site_info)
@@ -114,6 +112,23 @@ class Page extends ZeroFrame {
 
     this.units = {
       soldier: {
+        display_name: "Soldier",
+        description: "Simple unit to attack and defend.",
+        trainer: "barrack",
+        trainer_lvl: 1,
+        train_time: 1,
+        train_resources: {
+          wood: 10
+        },
+        pop: 1, //population units
+        travel_time: 1, 
+        travel_capacity: 10, //unit of resources to carry
+        attack: 2,
+        defense: 2
+      },
+      soldier2: {
+        display_name: "Soldier2",
+        description: "Simple unit to attack and defend.",
         trainer: "barrack",
         trainer_lvl: 1,
         train_time: 1,
@@ -126,6 +141,7 @@ class Page extends ZeroFrame {
         attack: 2,
         defense: 2
       }
+
     }
 
     //setup chain
@@ -182,6 +198,10 @@ class Page extends ZeroFrame {
           var building = state.computeBuilding(block.owner, unit.trainer, block.data.timestamp);
 
           if(base){
+            //check amount
+            if(!Number.isInteger(data.amount) || data.amount <= 0)
+              return false;
+
             //check population
             var cpop = state.computePopulation(block.owner, block.data.timestamp);
             if(cpop.population+unit.pop*data.amount > cpop.max)
@@ -897,7 +917,10 @@ class Page extends ZeroFrame {
       
     button = document.createElement("span");
     button.classList.add("button");
-    button.innerText = "downgrade";
+    if(info.in_construction)
+      button.innerText = "cancel";
+    else
+      button.innerText = "downgrade";
     button.onclick = function(){
       _this.game_chain.push({ type: "actions", timestamp: _this.current_timestamp, actions: [["unbuild", {building: building}]]});
     }
@@ -909,13 +932,56 @@ class Page extends ZeroFrame {
     this.e_buildings.appendChild(el);
   }
 
+  displayUnit(state, user, unit)
+  {
+    var _this = this;
+    var base = this.units[unit];
+    var player = state.players[user];
+    var units = state.computeUnits(user, unit, this.current_timestamp, true);
+    var tunits = state.computeUnits(user, unit, this.current_timestamp);
+    var p_unit = player.units[unit] || {amount: 0};
+
+    var el = document.createElement("div");
+    var img = document.createElement("img");
+    img.src = "images/units/"+unit+".png";
+    img.title = base.display_name;
+
+    var span = document.createElement("span");
+    span.innerText = units+" ("+tunits+")";
+
+    if(p_unit.order_timestamp != null && p_unit.order_timestamp > this.current_timestamp)
+      span.innerText += " training "+p_unit.ordered+" ETA "+(p_unit.order_timestamp-this.current_timestamp);
+
+    var i_order = document.createElement("input");
+    i_order.type = "text";
+    i_order.value = "0";
+
+    var b_order = document.createElement("span");
+    b_order.classList.add("button");
+    b_order.innerText = "train";
+    b_order.onclick = function(){
+      _this.game_chain.push({ type: "actions", timestamp: _this.current_timestamp, actions: [["train", {unit: unit, amount: parseInt(i_order.value)}]]});
+    }
+
+    var span_desc = document.createElement("span");
+    span_desc.innerText = base.description;
+
+    el.appendChild(img);
+    el.appendChild(span);
+    el.appendChild(i_order);
+    el.appendChild(b_order);
+    el.appendChild(span_desc);
+
+    this.e_units.appendChild(el);
+  }
+
   refresh(){
     var _this = this;
     var state = this.game_chain.state;
 
-    this.e_game.innerHTML = "";
     this.e_resources.innerHTML = "";
     this.e_buildings.innerHTML = "";
+    this.e_units.innerHTML = "";
 
     if(this.game_chain.stats.built_hash){
       if(this.site_info.cert_user_id){
@@ -924,7 +990,7 @@ class Page extends ZeroFrame {
         if(player){
           this.e_city.innerText = player.city_name;
 
-          //display resources
+          //display resources/pop
           this.displayResource(state, user, "wood");
           this.displayResource(state, user, "stone");
           this.displayResource(state, user, "iron");
@@ -932,33 +998,34 @@ class Page extends ZeroFrame {
           var pop = state.computePopulation(user, this.current_timestamp);
           this.e_pop.innerText = pop.population+" / "+pop.max+" pop";
 
+          //building
           this.displayBuilding(state, user, "city_hall");
           this.displayBuilding(state, user, "sawmill");
           this.displayBuilding(state, user, "barrack");
           this.displayBuilding(state, user, "farm");
 
-          this.e_game.appendChild(document.createElement("br"));
-          this.e_game.appendChild(document.createTextNode("= UNITS ="));
+          //units
+          this.displayUnit(state, user, "soldier");
+          this.displayUnit(state, user, "soldier2");
 
-          var disp_units = function(name){
-            var units = state.computeUnits(user, name, _this.current_timestamp, true);
-            var tunits = state.computeUnits(user, name, _this.current_timestamp);
-            var p_unit = player.units[name] || {amount: 0};
-
-            _this.e_game.appendChild(document.createElement("br"));
-            _this.e_game.appendChild(document.createTextNode(name+": amount = "+units+"("+tunits+") ordered = "+p_unit.ordered+" ETA "+(p_unit.order_timestamp-_this.current_timestamp)));
+          //stop training button
+          var b_stoptraining = document.createElement("span");
+          b_stoptraining.classList.add("button");
+          b_stoptraining.innerText = "stop all training";
+          b_stoptraining.onclick = function(){
+            _this.game_chain.push({ type: "actions", timestamp: _this.current_timestamp, actions: [["stop_training", {}]]});
           }
 
-          disp_units("soldier");
+          this.e_units.appendChild(b_stoptraining);
         }
         else{
-          //city creation
+          //city creation (TODO)
           var e_name = document.createElement("input");
           e_name.type = "text";
           e_name.placeholder = "city name (0-50)";
-          var e_valid = document.createElement("input");
-          e_valid.type = "button";
-          e_valid.value = "create city";
+          var e_valid = document.createElement("span");
+          e_valid.classList.add("button");
+          e_valid.innerText = "create city";
           e_valid.onclick = function(){
             if(e_name.value.length > 0 && e_name.value.length <= 50)
               _this.game_chain.push({type: "register", timestamp: _this.current_timestamp, city_name: e_name.value});
@@ -966,15 +1033,15 @@ class Page extends ZeroFrame {
               alert("Invalid number of characters.");
           }
 
-          this.e_game.appendChild(e_name);
-          this.e_game.appendChild(e_valid);
+          this.e_units.appendChild(e_name);
+          this.e_units.appendChild(e_valid);
         }
       }
       else
-        this.e_game.appendChild(document.createTextNode("Not logged."));
+        this.e_units.appendChild(document.createTextNode("Not logged."));
     }
     else
-      this.e_game.appendChild(document.createTextNode("Chain not loaded."));
+      this.e_units.appendChild(document.createTextNode("Chain not loaded."));
   }
 }
 
