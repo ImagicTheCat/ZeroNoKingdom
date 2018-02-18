@@ -837,7 +837,7 @@ class Page extends ZeroFrame {
     var el = document.createElement("div");
     var img = document.createElement("img");
     img.src = "images/resources/"+resource+".png";
-    img.title = name;
+    img.title = resource;
 
     var span = document.createElement("span");
     span.innerText = state.computeResource(user, resource, this.current_timestamp);
@@ -848,12 +848,40 @@ class Page extends ZeroFrame {
     this.e_resources.appendChild(el);
   }
 
+  displayBuilding(state, user, building)
+  {
+    var info = state.computeBuilding(user, building, this.current_timestamp);
+
+    var el = document.createElement("div");
+    var img = document.createElement("img");
+    img.src = "images/buildings/"+building+".png";
+    img.title = building;
+
+    var ul = document.createElement("ul");
+    
+    var li = document.createElement("li");
+    li.innerText = "lvl "+info.lvl;
+    ul.appendChild(li);
+
+    if(info.in_construction){
+      li = document.createElement("li");
+      li.innerText = "ETA "+(info.order_timestamp-this.current_timestamp);
+      ul.appendChild(li);
+    }
+      
+
+    el.appendChild(img);
+    el.appendChild(ul);
+    this.e_buildings.appendChild(el);
+  }
+
   refresh(){
     var _this = this;
     var state = this.game_chain.state;
 
     this.e_game.innerHTML = "";
     this.e_resources.innerHTML = "";
+    this.e_buildings.innerHTML = "";
 
     if(this.game_chain.stats.built_hash){
       if(this.site_info.cert_user_id){
@@ -898,6 +926,10 @@ class Page extends ZeroFrame {
           disp_building("sawmill");
           disp_building("barrack");
           disp_building("farm");
+          this.displayBuilding(state, user, "city_hall");
+          this.displayBuilding(state, user, "sawmill");
+          this.displayBuilding(state, user, "barrack");
+          this.displayBuilding(state, user, "farm");
 
           this.e_game.appendChild(document.createElement("br"));
           this.e_game.appendChild(document.createTextNode("= UNITS ="));
