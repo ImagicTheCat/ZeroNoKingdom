@@ -387,6 +387,7 @@ class Page extends ZeroFrame {
 
         travel.time = max_travel_time;
         travel.timestamp = block.data.timestamp;
+        travel.id = player_data.travels.length;
 
         //player record
         player_data.travels.push(travel);
@@ -1033,22 +1034,32 @@ class Page extends ZeroFrame {
           });
 
           for(var i = 0; i < travels.length; i++){
-            var travel = travels[i];
+            (function(i){ //js scope trick
+              var travel = travels[i];
 
-            if(travel.timestamp+travel.time > this.current_timestamp || true){
-              var el = document.createElement("div");
-              
-              var e_type = document.createElement("span");
-              e_type.innerText = ((travel.type == TravelType.RETURN && travel.from == user) || (travel.type != TravelType.RETURN && travel.from != user) ? "<=" : "=>");
-              e_type.classList.add(travel.from == user || travel.type == TravelType.TRANSPORT || travel.type == TravelType.DEFEND ? "friendly" : "hostile");
+              if(travel.timestamp+travel.time > _this.current_timestamp || true){
+                var el = document.createElement("div");
+                
+                var e_type = document.createElement("span");
+                e_type.innerText = ((travel.type == TravelType.RETURN && travel.from == user) || (travel.type != TravelType.RETURN && travel.from != user) ? "<=" : "=>");
+                e_type.classList.add(travel.type == TravelType.ATTACK ? "hostile" : "friendly");
 
-              var e_info = document.createElement("span");
-              e_info.innerText = this.game_chain.getCertUserId(travel.from)+" > "+this.game_chain.getCertUserId(travel.target)+" ETA "+((travel.timestamp+travel.time)-this.current_timestamp);
+                var e_info = document.createElement("span");
+                e_info.innerText = _this.game_chain.getCertUserId(travel.from)+" > "+_this.game_chain.getCertUserId(travel.target)+" ETA "+((travel.timestamp+travel.time)-_this.current_timestamp);
 
-              el.appendChild(e_type);
-              el.appendChild(e_info);
-              this.e_travels.appendChild(el);
-            }
+                var b_cancel = document.createElement("span");
+                b_cancel.classList.add("button");
+                b_cancel.innerText = "cancel";
+                b_cancel.onclick = function(){
+                  _this.game_chain.push({ type: "actions", timestamp: _this.current_timestamp, actions: [["cancel_travel", {id: travel.id}]]});
+                }
+
+                el.appendChild(e_type);
+                el.appendChild(e_info);
+                el.appendChild(b_cancel);
+                _this.e_travels.appendChild(el);
+              }
+            })(i);
           }
         }
         else{
