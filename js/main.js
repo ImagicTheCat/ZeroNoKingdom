@@ -45,11 +45,19 @@ class Page extends ZeroFrame {
   onOpenWebsocket() {
     var _this = this;
 
+    //init page
+
     this.e_user = document.getElementById("user");
     this.e_user.onclick = function(e){
       e.preventDefault();
       _this.cmd("certSelect", {});
     }
+
+    this.e_resources = document.getElementById("resources");
+    this.e_city = document.getElementById("city");
+    this.e_pop = document.getElementById("pop");
+    this.e_buildings = document.getElementById("buildings");
+    this.e_units = document.getElementById("units");
 
     this.e_game = document.getElementById("game");
 
@@ -816,11 +824,28 @@ class Page extends ZeroFrame {
     }, 60000);
   }
 
-  onRequest(cmd, message) {
+  onRequest(cmd, message) 
+  {
     if (cmd == "setSiteInfo")
       this.setSiteInfo(message.params)
     else
       this.log("Unknown incoming message:", cmd)
+  }
+
+  displayResource(state, user, resource)
+  {
+    var el = document.createElement("div");
+    var img = document.createElement("img");
+    img.src = "images/resources/"+resource+".png";
+    img.title = name;
+
+    var span = document.createElement("span");
+    span.innerText = state.computeResource(user, resource, this.current_timestamp);
+
+    el.appendChild(img);
+    el.appendChild(span);
+
+    this.e_resources.appendChild(el);
   }
 
   refresh(){
@@ -828,33 +853,23 @@ class Page extends ZeroFrame {
     var state = this.game_chain.state;
 
     this.e_game.innerHTML = "";
+    this.e_resources.innerHTML = "";
 
     if(this.game_chain.stats.built_hash){
       if(this.site_info.cert_user_id){
         var user = this.site_info.auth_address;
         var player = state.players[user];
         if(player){
-          var e_infos = document.createElement("textarea");
-          e_infos.style.width = "800px";
-          e_infos.style.height = "200px";
-
-          //display city info
-          e_infos.innerHTML += "city name: "+player.city_name;
-
-          var disp_resource = function(name){
-            e_infos.innerHTML += "\n"+name+": "+state.computeResource(user, name, _this.current_timestamp);
-          }
+          this.e_city.innerText = player.city_name;
 
           //display resources
-          e_infos.innerHTML += "\n\n= RESOURCES ="
-          disp_resource("wood");
-          disp_resource("stone");
-          disp_resource("iron");
-          var pop = state.computePopulation(user, this.current_timestamp);
-          e_infos.innerHTML += "\npop = "+pop.population+" / "+pop.max;
-          this.e_game.appendChild(e_infos);
+          this.displayResource(state, user, "wood");
+          this.displayResource(state, user, "stone");
+          this.displayResource(state, user, "iron");
 
-          this.e_game.appendChild(document.createElement("br"));
+          var pop = state.computePopulation(user, this.current_timestamp);
+          this.e_pop.innerText = pop.population+" / "+pop.max+" pop";
+
           this.e_game.appendChild(document.createTextNode("= BUILDINGS ="));
 
           var disp_building = function(name){
